@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# =============================================================================
+# ShadowScope CLI - Shadow IT Detection Toolkit
+# =============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+API_URL="http://localhost:5000"
+
+# 🎨 COLORS (3-color clean theme)
+PURPLE='\033[1;35m'
+GREEN='\033[1;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+RESET='\033[0m'
+
+# ─────────────────────────────────────────────
+# 🔥 BANNER
+# ─────────────────────────────────────────────
+print_banner() {
+    echo -e "${PURPLE}"
+    echo "███████╗██╗  ██╗ █████╗ ██████╗  ██████╗ ██╗    ██╗███████╗"
+    echo "██╔════╝██║  ██║██╔══██╗██╔══██╗██╔═══██╗██║    ██║██╔════╝"
+    echo "███████╗███████║███████║██║  ██║██║   ██║██║ █╗ ██║███████╗"
+    echo "╚════██║██╔══██║██╔══██║██║  ██║██║   ██║██║███╗██║╚════██║"
+    echo "███████║██║  ██║██║  ██║██████╔╝╚██████╔╝╚███╔███╔╝███████║"
+    echo "╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝  ╚═════╝  ╚══╝╚══╝ ╚══════╝"
+    echo -e "${RESET}"
+
+    echo -e "${PURPLE}  SHADOWSCOPE - Shadow IT Detection Engine${RESET}"
+    echo -e "${GREEN}  SANJAIRATHINAM | Cybersecurity Researcher${RESET}"
+    echo -e "${YELLOW}  Founder of DragonByte CTF Platform${RESET}"
+    echo ""
+
+    echo -e "${YELLOW}  Skills:${RESET} Web Security | PenTesting | CTF Dev | AI Security"
+    echo ""
+
+    echo -e "${PURPLE}  > mindset:${RESET}"
+    echo -e "    ${GREEN}think_like_attacker();${RESET}"
+    echo -e "    ${YELLOW}build_like_engineer();${RESET}"
+    echo -e "    ${GREEN}secure_everything();${RESET}"
+    echo ""
+}
+
+# ─────────────────────────────────────────────
+# 📘 HELP
+# ─────────────────────────────────────────────
+print_help() {
+    print_banner
+    echo -e "${CYAN}USAGE:${RESET}"
+    echo -e "  shadowscope <module> <action> [target]"
+    echo ""
+
+    echo -e "${CYAN}MODULES:${RESET}"
+    echo -e "  system     start, stop, status"
+    echo -e "  activity   log <url>"
+    echo -e "  scan       <url>"
+    echo -e "  alerts     list"
+    echo -e "  monitor"
+    echo ""
+}
+
+# ─────────────────────────────────────────────
+# 🔄 SCAN ANIMATION
+# ─────────────────────────────────────────────
+scan_animation() {
+    echo -e "${YELLOW}[+] Scanning target...${RESET}"
+
+    echo -ne "${PURPLE}[████░░░░░░░░░░░░] 20%${RESET}\r"
+    sleep 0.4
+    echo -ne "${PURPLE}[████████░░░░░░░░] 40%${RESET}\r"
+    sleep 0.4
+    echo -ne "${PURPLE}[██████████░░░░░░] 60%${RESET}\r"
+    sleep 0.4
+    echo -ne "${PURPLE}[████████████░░░░] 80%${RESET}\r"
+    sleep 0.4
+    echo -ne "${GREEN}[████████████████] 100%${RESET}\n"
+    echo ""
+}
+
+# ─────────────────────────────────────────────
+# 🚀 START
+# ─────────────────────────────────────────────
+if [ $# -eq 0 ]; then
+    print_help
+    exit 0
+fi
+
+MODULE="$1"
+ACTION="$2"
+
+# ─────────────────────────────────────────────
+# ⚙️ SYSTEM
+# ─────────────────────────────────────────────
+if [[ "$MODULE" == "system" ]]; then
+
+    if [[ "$ACTION" == "start" ]]; then
+        echo -e "${GREEN}[+] Starting ShadowScope...${RESET}"
+
+        redis-server --daemonize yes
+        mongod --fork --logpath /tmp/mongo.log
+
+        cd "$SCRIPT_DIR/backend"
+        npm run dev > /tmp/shadowscope-api.log 2>&1 &
+        npm run worker > /tmp/shadowscope-worker.log 2>&1 &
+
+        sleep 2
+        echo -e "${GREEN}[✔] Running at http://localhost:5000${RESET}"
+        exit 0
+    fi
+
+    if [[ "$ACTION" == "stop" ]]; then
+        echo -e "${RED}[-] Stopping services...${RESET}"
+        pkill -f node
+        pkill -f redis-server
+        pkill -f mongod
+        echo -e "${GREEN}[✔] Stopped${RESET}"
+        exit 0
+    fi
+
+    if [[ "$ACTION" == "status" ]]; then
+        echo -e "${CYAN}[*] Status:${RESET}"
+        pgrep -f node >/dev/null && echo "Node: ✔" || echo "Node: ✖"
+        pgrep -f redis >/dev/null && echo "Redis: ✔" || echo "Redis: ✖"
+        pgrep -f mongo >/dev/null && echo "Mongo: ✔" || echo "Mongo: ✖"
+        exit 0
+    fi
+fi
+
+# ─────────────────────────────────────────────
+# 📡 ACTIVITY
+# ─────────────────────────────────────────────
+if [[ "$MODULE" == "activity" ]]; then
+
+    if [[ "$ACTION" == "log" ]]; then
+        URL="$3"
+
+        if [ -z "$URL" ]; then
+            echo -e "${RED}[!] Missing URL${RESET}"
+            exit 1
+        fi
+
+        echo -e "${CYAN}[*] Sending activity...${RESET}"
+
+        curl -s -X POST "$API_URL/api/activity" \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"userId\":\"cli-user\",
+                \"url\":\"$URL\",
+                \"action\":\"visit\"
+            }" > /dev/null
+
+        echo -e "${GREEN}[✔] Event queued${RESET}"
+        exit 0
+    fi
+fi
+
+# ─────────────────────────────────────────────
+# 🔍 SCAN
+# ─────────────────────────────────────────────
+if [[ "$MODULE" == "scan" ]]; then
+    URL="$ACTION"
+
+    if [ -z "$URL" ]; then
+        echo -e "${RED}[!] Missing target${RESET}"
+        exit 1
+    fi
+
+    echo -e "${CYAN}[*] Target: $URL${RESET}"
+
+    scan_animation
+
+    shadowscope activity log "$URL"
+
+    sleep 1
+
+    echo -e "${YELLOW}--- Risk Analysis ---${RESET}"
+    shadowscope alerts list
+
+    exit 0
+fi
+
+# ─────────────────────────────────────────────
+# 🚨 ALERTS
+# ─────────────────────────────────────────────
+if [[ "$MODULE" == "alerts" ]]; then
+
+    if [[ "$ACTION" == "list" ]]; then
+        curl -s "$API_URL/api/alerts" | jq -r '
+        .[] | "🚨 \(.title)\n   Domain: \(.domain)\n   Severity: \(.severity)\n"
+        '
+        exit 0
+    fi
+fi
+
+# ─────────────────────────────────────────────
+# 📡 MONITOR
+# ─────────────────────────────────────────────
+if [[ "$MODULE" == "monitor" ]]; then
+    echo -e "${CYAN}📡 Live Logs:${RESET}"
+    tail -f /tmp/shadowscope-worker.log
+    exit 0
+fi
+
+# ─────────────────────────────────────────────
+# ❌ UNKNOWN
+# ─────────────────────────────────────────────
+echo -e "${RED}[!] Invalid command${RESET}"
+print_help
+exit 1
